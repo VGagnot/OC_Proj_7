@@ -17,25 +17,39 @@ from flask import Flask
 app = dash.Dash()
 
 lgbm2 = joblib.load(open("classification_credit.sav", 'rb'))
-testX = pd.read_csv("echantillon_test_X.csv")
-testX = testX.set_index(echantillon_test_X.columns[0])
+echantillon_test_X = pd.read_csv("echantillon_test_X.csv")
+echantillon_test_X = echantillon_test_X.set_index(echantillon_test_X.columns[0])
+echantillon_test_y = pd.read_csv("echantillon_test_y.csv")
+
+# Pour le scatterplot: extrait d'individus du train pour population de référence
+
+echantillon_train_pred = pd.read_csv("echantillon_train_pred.csv")
+echantillon_train_pred = echantillon_train_pred.set_index(echantillon_train_pred.columns[0])
+# Comprend classe de 0 à 4 selon la probabilité de défaut
+
+echantillon_train_X = pd.read_csv("echantillon_train_X.csv")
+echantillon_train_X = echantillon_train_X.set_index(echantillon_train_X.columns[0])
+
 
 explainerModel = shap.TreeExplainer(lgbm2)
-shap_values = explainerModel.shap_values(testX)
+shap_values = explainerModel.shap_values(echantillon_test_X)
 
 import random
 #i = 0
-#i = random.randrange(0, len(testy)-1)
+#i = random.randrange(0, len(echantillon_test_y)-1)
 i = random.randrange(0, 9)
 
-pred = lgbm2.predict_proba(testX.iloc[i].to_numpy().reshape(1, -1))[0][0]
+#pred = lgbm2.predict_proba(echantillon_test_X.iloc[i].to_numpy().reshape(1, -1))[0][0]
 
 
+data_requests = requests.get("http://127.0.0.1:5000/fi_locales/")
+json_data = data_requests.json()
+pred = json_data['data'][0]
 
 #Un graph très simple, pour test: les poids relatifs des remboursements et des défauts
 
-Remb = testy.query("TARGET == 0")
-Def = testy.query("TARGET == 1")
+Remb = echantillon_test_y.query("TARGET == 0")
+Def = echantillon_test_y.query("TARGET == 1")
 Remb = go.Bar(
     x=['Remboursement', 'Défaut'],
     y=[len(Remb), len(Def)],
@@ -81,11 +95,36 @@ jauge = go.Figure(go.Indicator(
 #ax.axes.xaxis.set_visible(False)
 #ax.set_xlim([-lim_x, lim_x])
 
-data_requests = requests.get("http://127.0.0.1:5000/fi_locales/")
+
+#Scatter Plot
+
+def classe_to_color(individu):
+  pred = individu['Classe']
+  output = 'limegreen'
+  if pred == 1:
+    output = 'lightgreen'
+  if pred == 2:
+    output = 'yellow'
+  if pred == 3:
+    output = 'orange'
+  if pred == 4:
+    output = 'orangered'
+  return output
+
+echantillon_train_pred['color'] = echantillon_train_pred.apply(lambda x: classe_to_color(x), axis = 1)
+
+scat = plt.scatter(echantillon_train_X['EXT_SOURCE_1_stdscl'], echantillon_train_X['EXT_SOURCE_2_stdscl'], c=echantillon_train_pred['color'])
+
+
 
 #Layout:
 
-app.layout = html.Div([
+app.layout = html.Div(children=[
+    html.H1(children='Hello Dash'),
+
+    html.Div(children=
+	'On s amuse bien avec Dash'),
+
     dcc.Graph(id='jauge',
 		figure = jauge
               )
@@ -94,8 +133,10 @@ app.layout = html.Div([
 #              )
     ,dcc.Graph(id='remb',
               figure=go.Figure(data=[Remb],
-              layout=go.Layout())
-              )
+              layout=go.Layout()))
+#    ,dcc.Graph(id='scat',
+#              figure=scat
+#		)
     ])
 
 
