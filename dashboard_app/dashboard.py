@@ -34,9 +34,9 @@ feat_imp_glob = feat_imp_glob.set_index(feat_imp_glob['Feature2'])
 
 
 import random
-#i = 0
+i = 0
 #i = random.randrange(0, len(echantillon_test_y)-1)
-i = random.randrange(0, 9)
+#i = random.randrange(0, 9)
 
 
 data_requests = requests.get("http://127.0.0.1:5000/fi_locales/")
@@ -109,9 +109,9 @@ ppaux_contribs_glob.add_trace(go.Bar(
 
 ppaux_contribs_glob.add_trace(go.Bar(
    x = json_data['contrib_top_10_glob'],
-   y = top_10_contrib_glob['Feature'],
+   y = ['NEW_EXT_SOURCES_SUM_stdscl', 'EXT_SOURCE_2_stdscl', 'EXT_SOURCE_3_stdscl', 'NEW_SOURCES_PROD_stdscl', 'INSTAL_DPD_MEAN_stdscl', 'NEW_CREDIT_TO_GOODS_RATIO_stdscl', 'NEW_CREDIT_TO_ANNUITY_RATIO_stdscl', 'CODE_GENDER_stdscl', 'NEW_DOC_IND_KURT_stdscl', 'AMT_ANNUITY_stdscl'],
    name = 'Local feature importance',
-   marker_color = col_contribs_loc,
+   marker_color = json_data['col_glob'],
    orientation='h'
 ))
 

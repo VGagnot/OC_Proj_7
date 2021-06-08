@@ -24,6 +24,7 @@ def shap_loc_val():
 	liste_contribs = []
 	val_contribs = []
 	col = []
+	col_glob = []
 	contrib_top_10_glob = [
 		shap_values[0][i][testX.columns.tolist().index('NEW_EXT_SOURCES_SUM_stdscl')],
 		shap_values[0][i][testX.columns.tolist().index('EXT_SOURCE_2_stdscl')],
@@ -44,6 +45,13 @@ def shap_loc_val():
 			col.append('red')
 		else:
 			col.append('green')
+
+	for j in contrib_top_10_glob:
+		if j > 0:
+			col_glob.append('red')
+		else:
+			col_glob.append('green')
+
 	lim_x = [
 		max(map(abs, val_contribs))*1.1,
 		max(map(abs, contrib_top_10_glob))*1.1,
@@ -57,6 +65,7 @@ def shap_loc_val():
 		'liste_top_10_contribs': liste_contribs,
 		'val_top_10_contribs': val_contribs,
 		'col': col,
+		'col_glob': col_glob,
 		'contrib_top_10_glob': contrib_top_10_glob,
 		'lim_x': lim_x})
 
