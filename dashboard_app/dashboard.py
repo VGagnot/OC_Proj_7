@@ -16,46 +16,36 @@ from flask import Flask
 
 app = dash.Dash()
 
-lgbm2 = joblib.load(open("classification_credit.sav", 'rb'))
+#lgbm2 = joblib.load(open("classification_credit.sav", 'rb'))
 echantillon_test_X = pd.read_csv("echantillon_test_X.csv")
 echantillon_test_X = echantillon_test_X.set_index(echantillon_test_X.columns[0])
 echantillon_test_y = pd.read_csv("echantillon_test_y.csv")
 
 # Pour le scatterplot: extrait d'individus du train pour population de référence
+# Comprend classe de 0 à 4 selon la probabilité de défaut (echantillon_train_pred)
 
 echantillon_train_pred = pd.read_csv("echantillon_train_pred.csv")
 echantillon_train_pred = echantillon_train_pred.set_index(echantillon_train_pred.columns[0])
-# Comprend classe de 0 à 4 selon la probabilité de défaut
-
 echantillon_train_X = pd.read_csv("echantillon_train_X.csv")
 echantillon_train_X = echantillon_train_X.set_index(echantillon_train_X.columns[0])
+feat_imp_glob = pd.read_csv("feat_imp_glob.csv")
+feat_imp_glob['Feature2'] = feat_imp_glob['Feature'].copy()
+feat_imp_glob = feat_imp_glob.set_index(feat_imp_glob['Feature2'])
 
-
-explainerModel = shap.TreeExplainer(lgbm2)
-shap_values = explainerModel.shap_values(echantillon_test_X)
 
 import random
 #i = 0
 #i = random.randrange(0, len(echantillon_test_y)-1)
 i = random.randrange(0, 9)
 
-#pred = lgbm2.predict_proba(echantillon_test_X.iloc[i].to_numpy().reshape(1, -1))[0][0]
-
 
 data_requests = requests.get("http://127.0.0.1:5000/fi_locales/")
 json_data = data_requests.json()
-pred = json_data['data'][0]
-
-#Un graph très simple, pour test: les poids relatifs des remboursements et des défauts
-
-Remb = echantillon_test_y.query("TARGET == 0")
-Def = echantillon_test_y.query("TARGET == 1")
-Remb = go.Bar(
-    x=['Remboursement', 'Défaut'],
-    y=[len(Remb), len(Def)],
-    name='graph 1'
-)
-
+pred = json_data['pred']
+liste_contribs_loc = json_data['liste_top_10_contribs']
+val_contribs_loc = json_data['val_top_10_contribs']
+col_contribs_loc = json_data['col']
+lim_x = json_data['lim_x']
 
 #Ma jauge:
 
@@ -88,34 +78,105 @@ jauge = go.Figure(go.Indicator(
 
 #Principaux contributeurs:
 
+#Contributions locales
 
-#fig2, ax = plt.subplots(figsize=(12,12))
-#fig2 = plt.barh(y=liste_contribs, width=val_contribs, color = col)
-#ax.set_title('Principaux contributeurs')
-#ax.axes.xaxis.set_visible(False)
-#ax.set_xlim([-lim_x, lim_x])
+contribs_loc = [go.Bar(
+   x = val_contribs_loc,
+   y = liste_contribs_loc,
+   name = 'Local feature importance',
+   marker_color = col_contribs_loc,
+   orientation='h'
+)]
+ppaux_contribs_loc = go.Figure(data=contribs_loc)
+ppaux_contribs_loc.update_layout(xaxis_range=[-lim_x[0],lim_x[0]])
+
+
+
+#Contributions locales vs globales
+
+top_10_contrib_glob_idx = np.argsort(abs(feat_imp_glob['Feature_importance']))[-10:]
+top_10_contrib_glob = feat_imp_glob.iloc[top_10_contrib_glob_idx]
+
+ppaux_contribs_glob = go.Figure()
+
+ppaux_contribs_glob.add_trace(go.Bar(
+   x = top_10_contrib_glob['Feature_importance'],
+   y = top_10_contrib_glob['Feature'],
+   name = 'Global feature importance',
+   marker_color = 'gray',
+   orientation='h'
+))
+
+ppaux_contribs_glob.add_trace(go.Bar(
+   x = json_data['contrib_top_10_glob'],
+   y = top_10_contrib_glob['Feature'],
+   name = 'Local feature importance',
+   marker_color = col_contribs_loc,
+   orientation='h'
+))
+
+lim_x_loc_glob = max(lim_x[1], max(top_10_contrib_glob['Feature_importance'])*1,1)
+ppaux_contribs_glob.update_layout(xaxis_range=[-lim_x_loc_glob, lim_x_loc_glob])
+
+
 
 
 #Scatter Plot
 
-def classe_to_color(individu):
-  pred = individu['Classe']
-  output = 'limegreen'
-  if pred == 1:
-    output = 'lightgreen'
-  if pred == 2:
-    output = 'yellow'
-  if pred == 3:
-    output = 'orange'
-  if pred == 4:
-    output = 'orangered'
-  return output
+a = 'EXT_SOURCE_1_stdscl'
+b = 'EXT_SOURCE_2_stdscl'
 
-echantillon_train_pred['color'] = echantillon_train_pred.apply(lambda x: classe_to_color(x), axis = 1)
+scat = go.Figure()
 
-scat = plt.scatter(echantillon_train_X['EXT_SOURCE_1_stdscl'], echantillon_train_X['EXT_SOURCE_2_stdscl'], c=echantillon_train_pred['color'])
+scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 0][a],
+                                y=echantillon_train_X[echantillon_train_pred['Classe'] == 0][b],
+				mode='markers',
+				marker_color='limegreen',
+				name="Très bons candidats"
+				))
 
+scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 1][a],
+                                y=echantillon_train_X[echantillon_train_pred['Classe'] == 1][b],
+				mode='markers',
+				marker_color='lightgreen',
+				name="Bons candidats"
+				))
 
+scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 2][a],
+                                y=echantillon_train_X[echantillon_train_pred['Classe'] == 2][b],
+				mode='markers',
+				marker_color='yellow',
+				name="Candidats acceptables"
+				))
+
+scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 3][a],
+                                y=echantillon_train_X[echantillon_train_pred['Classe'] == 3][b],
+				mode='markers',
+				marker_color='orange',
+				name="Candidats risqués"
+				))
+
+scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 4][a],
+                                y=echantillon_train_X[echantillon_train_pred['Classe'] == 4][b],
+				mode='markers',
+				marker_color='orangered',
+				name="Candidats très risqués"
+				))
+
+scat.add_trace(go.Scatter(x=[echantillon_test_X[a].iloc[i]],
+                                y=[echantillon_test_X[b].iloc[i]],
+				mode='markers',
+				marker=dict(
+            				color='black',
+					size=12
+				),
+				name="Votre candidat"
+				))
+
+scat.update_layout(
+    autosize=False,
+    width=1000,
+    height=700)
 
 #Layout:
 
@@ -128,15 +189,15 @@ app.layout = html.Div(children=[
     dcc.Graph(id='jauge',
 		figure = jauge
               )
-#    ,dcc.Graph(id='fig2',
-#              figure=[fig2,ax]
-#              )
-    ,dcc.Graph(id='remb',
-              figure=go.Figure(data=[Remb],
-              layout=go.Layout()))
-#    ,dcc.Graph(id='scat',
-#              figure=scat
-#		)
+    ,dcc.Graph(id='ppaux_contribs_glob',
+              figure=ppaux_contribs_glob
+              )
+    ,dcc.Graph(id='ppaux_contribs_loc',
+              figure=ppaux_contribs_loc
+              )
+    ,dcc.Graph(id='scat',
+              figure=scat
+		)
     ])
 
 

@@ -24,6 +24,18 @@ def shap_loc_val():
 	liste_contribs = []
 	val_contribs = []
 	col = []
+	contrib_top_10_glob = [
+		shap_values[0][i][testX.columns.tolist().index('NEW_EXT_SOURCES_SUM_stdscl')],
+		shap_values[0][i][testX.columns.tolist().index('EXT_SOURCE_2_stdscl')],
+		shap_values[0][i][testX.columns.tolist().index('EXT_SOURCE_3_stdscl')],
+		shap_values[0][i][testX.columns.tolist().index('NEW_SOURCES_PROD_stdscl')],
+		shap_values[0][i][testX.columns.tolist().index('INSTAL_DPD_MEAN_stdscl')],
+		shap_values[0][i][testX.columns.tolist().index('NEW_CREDIT_TO_GOODS_RATIO_stdscl')],
+		shap_values[0][i][testX.columns.tolist().index('NEW_CREDIT_TO_ANNUITY_RATIO_stdscl')],
+		shap_values[0][i][testX.columns.tolist().index('CODE_GENDER_stdscl')],
+		shap_values[0][i][testX.columns.tolist().index('NEW_DOC_IND_KURT_stdscl')],
+		shap_values[0][i][testX.columns.tolist().index('AMT_ANNUITY_stdscl')]
+		]
 
 	for j in top_10_contrib_idx:
 		liste_contribs.append(testX.columns[j])
@@ -32,10 +44,21 @@ def shap_loc_val():
 			col.append('red')
 		else:
 			col.append('green')
-	lim_x = max(abs(shap_values[0][i]))*1.1
+	lim_x = [
+		max(map(abs, val_contribs))*1.1,
+		max(map(abs, contrib_top_10_glob))*1.1,
+		max(map(abs, contrib_top_10_glob + val_contribs))*1.1
+		]
+		
 
 	data = [pred, liste_contribs, val_contribs, col, lim_x]
-	return jsonify({'data':data})
+	return jsonify({
+		'pred':pred,
+		'liste_top_10_contribs': liste_contribs,
+		'val_top_10_contribs': val_contribs,
+		'col': col,
+		'contrib_top_10_glob': contrib_top_10_glob,
+		'lim_x': lim_x})
 
 
 if __name__ == "__main__":
