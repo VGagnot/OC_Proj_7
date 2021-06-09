@@ -19,7 +19,8 @@ app = dash.Dash()
 
 
 echantillon_test_X = pd.read_csv("echantillon_test_X.csv")
-echantillon_test_X = echantillon_test_X.set_index(echantillon_test_X.columns[0])
+#echantillon_test_X = echantillon_test_X.set_index(echantillon_test_X.columns[0])
+echantillon_test_X = echantillon_test_X.drop(echantillon_test_X.columns[0], axis = 1)
 echantillon_test_y = pd.read_csv("echantillon_test_y.csv")
 
 # Pour le scatterplot: extrait d'individus du train pour population de référence
