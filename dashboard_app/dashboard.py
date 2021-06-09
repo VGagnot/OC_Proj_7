@@ -5,7 +5,7 @@ from dash.dependencies import Input, Output
 import requests
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import random
 
 import joblib
 from lightgbm import LGBMClassifier
@@ -16,7 +16,8 @@ from flask import Flask
 
 app = dash.Dash()
 
-#lgbm2 = joblib.load(open("classification_credit.sav", 'rb'))
+
+
 echantillon_test_X = pd.read_csv("echantillon_test_X.csv")
 echantillon_test_X = echantillon_test_X.set_index(echantillon_test_X.columns[0])
 echantillon_test_y = pd.read_csv("echantillon_test_y.csv")
@@ -33,19 +34,23 @@ feat_imp_glob['Feature2'] = feat_imp_glob['Feature'].copy()
 feat_imp_glob = feat_imp_glob.set_index(feat_imp_glob['Feature2'])
 
 
-import random
-i = 0
+
+
+
+#i = 0
 #i = random.randrange(0, len(echantillon_test_y)-1)
-#i = random.randrange(0, 9)
+i = random.randrange(0, len(echantillon_test_y))
 
 
-data_requests = requests.get("http://127.0.0.1:5000/fi_locales/")
+data_requests = requests.get("http://127.0.0.1:5000/fi_locales/?individu="+str(i))
 json_data = data_requests.json()
 pred = json_data['pred']
 liste_contribs_loc = json_data['liste_top_10_contribs']
 val_contribs_loc = json_data['val_top_10_contribs']
 col_contribs_loc = json_data['col']
 lim_x = json_data['lim_x']
+
+
 
 #Ma jauge:
 
@@ -59,7 +64,7 @@ else:
   col = 'red'
 
 jauge = go.Figure(go.Indicator(
-    mode = "gauge",
+    mode = "gauge+number",
     value = pred,
     domain = {'x': [0, 1], 'y': [0, 1]}
     ,title = {'text': "Score credit"}
@@ -121,49 +126,97 @@ ppaux_contribs_glob.update_layout(xaxis_range=[-lim_x_loc_glob, lim_x_loc_glob])
 
 
 
-#Scatter Plot
 
-a = 'EXT_SOURCE_1_stdscl'
-b = 'EXT_SOURCE_2_stdscl'
 
-scat = go.Figure()
 
-scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 0][a],
+
+
+#Layout:
+
+app.layout = html.Div(children=[
+	html.H1(children='Dashboard credit'),
+
+	html.Div(children='Bienvenue sur mon dashboard crédit.'),
+	html.Div(["Choisissez un individu (0 à 999): ",
+		dcc.Input(id='ID', 
+			value='0', 
+			type='number',
+			min=0,
+			max=999)]),
+	html.Div(id='display_number_output'),
+
+	dcc.Graph(id='jauge',
+		figure = jauge
+              )
+	,dcc.Graph(id='ppaux_contribs_glob',
+              figure=ppaux_contribs_glob
+              )
+	,dcc.Graph(id='ppaux_contribs_loc',
+              figure=ppaux_contribs_loc
+              )
+
+	,dcc.Dropdown(id='dropdown_1', 
+		multi=False, 
+		options=[{'label': x, 'value': x} for x in sorted(echantillon_train_X.columns)],
+		value="EXT_SOURCE_1_stdscl")
+	,dcc.Dropdown(id='dropdown_2', 
+		multi=False, 
+		options=[{'label': x, 'value': x} for x in sorted(echantillon_train_X.columns)],
+		value="EXT_SOURCE_2_stdscl")
+	,dcc.Graph(id='scat',
+              figure={}
+		)
+    ])
+
+
+@app.callback(
+	Output('display_number_output', 'children'),
+	Input('ID', 'value')
+	)
+def afficher_candidat(ID):
+	return u'Vous affichez le candidat "{}".'.format(ID)
+
+@app.callback(
+	Output(component_id='scat', component_property='figure'),
+	Input(component_id='dropdown_1', component_property = 'value'),
+	Input(component_id='dropdown_2', component_property = 'value')
+	)
+	#Scatter Plot
+def update_scatter_plot(feat_x, feat_y):
+	a = feat_x
+	b = feat_y
+	scat = go.Figure()
+	scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 0][a],
                                 y=echantillon_train_X[echantillon_train_pred['Classe'] == 0][b],
 				mode='markers',
 				marker_color='limegreen',
 				name="Très bons candidats"
 				))
-
-scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 1][a],
+	scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 1][a],
                                 y=echantillon_train_X[echantillon_train_pred['Classe'] == 1][b],
 				mode='markers',
 				marker_color='lightgreen',
 				name="Bons candidats"
 				))
-
-scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 2][a],
+	scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 2][a],
                                 y=echantillon_train_X[echantillon_train_pred['Classe'] == 2][b],
 				mode='markers',
 				marker_color='yellow',
 				name="Candidats acceptables"
 				))
-
-scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 3][a],
+	scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 3][a],
                                 y=echantillon_train_X[echantillon_train_pred['Classe'] == 3][b],
 				mode='markers',
 				marker_color='orange',
 				name="Candidats risqués"
 				))
-
-scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 4][a],
+	scat.add_trace(go.Scatter(x=echantillon_train_X[echantillon_train_pred['Classe'] == 4][a],
                                 y=echantillon_train_X[echantillon_train_pred['Classe'] == 4][b],
 				mode='markers',
 				marker_color='orangered',
 				name="Candidats très risqués"
 				))
-
-scat.add_trace(go.Scatter(x=[echantillon_test_X[a].iloc[i]],
+	scat.add_trace(go.Scatter(x=[echantillon_test_X[a].iloc[i]],
                                 y=[echantillon_test_X[b].iloc[i]],
 				mode='markers',
 				marker=dict(
@@ -172,33 +225,12 @@ scat.add_trace(go.Scatter(x=[echantillon_test_X[a].iloc[i]],
 				),
 				name="Votre candidat"
 				))
+	scat.update_layout(
+		autosize=False,
+		width=1000,
+		height=700)
+	return scat
 
-scat.update_layout(
-    autosize=False,
-    width=1000,
-    height=700)
-
-#Layout:
-
-app.layout = html.Div(children=[
-    html.H1(children='Hello Dash'),
-
-    html.Div(children=
-	'On s amuse bien avec Dash'),
-
-    dcc.Graph(id='jauge',
-		figure = jauge
-              )
-    ,dcc.Graph(id='ppaux_contribs_glob',
-              figure=ppaux_contribs_glob
-              )
-    ,dcc.Graph(id='ppaux_contribs_loc',
-              figure=ppaux_contribs_loc
-              )
-    ,dcc.Graph(id='scat',
-              figure=scat
-		)
-    ])
 
 
 if __name__ == "__main__":
