@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import joblib
 from lightgbm import LGBMClassifier
 import shap
@@ -15,16 +15,27 @@ testX = testX.set_index(testX.columns[0])
 explainerModel = shap.TreeExplainer(lgbm2)
 shap_values = explainerModel.shap_values(testX)
 
+
+
 @app.route('/fi_locales/')
-#def shap_loc_val(i):
 def shap_loc_val():
-	i=0
+	i = int(request.args.get('individu'))
 	pred = lgbm2.predict_proba(testX.iloc[i].to_numpy().reshape(1, -1))[0][0]
 	top_10_contrib_idx = np.argsort(abs(shap_values[0][i]))[-10:]
 	liste_contribs = []
 	val_contribs = []
 	col = []
 	col_glob = []
+
+
+	for j in top_10_contrib_idx:
+		liste_contribs.append(testX.columns[j])
+		val_contribs.append(shap_values[0][i][j])
+		if shap_values[0][i][j] > 0:
+			col.append('red')
+		else:
+			col.append('green')
+
 	contrib_top_10_glob = [
 		shap_values[0][i][testX.columns.tolist().index('NEW_EXT_SOURCES_SUM_stdscl')],
 		shap_values[0][i][testX.columns.tolist().index('EXT_SOURCE_2_stdscl')],
@@ -38,19 +49,12 @@ def shap_loc_val():
 		shap_values[0][i][testX.columns.tolist().index('AMT_ANNUITY_stdscl')]
 		]
 
-	for j in top_10_contrib_idx:
-		liste_contribs.append(testX.columns[j])
-		val_contribs.append(shap_values[0][i][j])
-		if shap_values[0][i][j] > 0:
-			col.append('red')
-		else:
-			col.append('green')
-
 	for j in contrib_top_10_glob:
 		if j > 0:
 			col_glob.append('red')
 		else:
 			col_glob.append('green')
+
 
 	lim_x = [
 		max(map(abs, val_contribs))*1.1,
@@ -59,7 +63,6 @@ def shap_loc_val():
 		]
 		
 
-	data = [pred, liste_contribs, val_contribs, col, lim_x]
 	return jsonify({
 		'pred':pred,
 		'liste_top_10_contribs': liste_contribs,
@@ -67,7 +70,8 @@ def shap_loc_val():
 		'col': col,
 		'col_glob': col_glob,
 		'contrib_top_10_glob': contrib_top_10_glob,
-		'lim_x': lim_x})
+		'lim_x': lim_x,
+		'individu': i})
 
 
 if __name__ == "__main__":
