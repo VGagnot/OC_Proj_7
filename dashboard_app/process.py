@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 app = Flask(__name__)
+#server = app.server
 
 lgbm2 = joblib.load(open("classification_credit.sav", 'rb'))
 testy = pd.read_csv("echantillon_test_y.csv")

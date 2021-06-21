@@ -1,7 +1,7 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import requests
 import pandas as pd
 import numpy as np
@@ -10,6 +10,7 @@ from lightgbm import LGBMClassifier
 import shap
 import plotly.graph_objs as go
 from flask import Flask
+
 
 app = dash.Dash(external_stylesheets=['https://codepen.io/chriddyp/pen/bWLwgP.css'])
 
@@ -62,11 +63,13 @@ app.layout = html.Div(children=[
 			'watermark': True
                         })
 
+	,html.Div(id='conseil_IA')
+
 	,html.Div([
-		dcc.Graph(id='ppaux_contribs_loc',
-			figure={}, 
-			className='six columns',
-			config={
+		dcc.Graph(id='ppaux_contribs_loc'
+			,figure={}
+			,className='six columns'
+			,config={
 				'staticPlot': False,
 				'scrollZoom': True,
 				'doubleClick': 'reset',
@@ -75,10 +78,10 @@ app.layout = html.Div(children=[
 				'watermark': True
                         	}
 			),
-		dcc.Graph(id='ppaux_contribs_glob',
-			figure={}, 
-			className='six columns',
-			config={
+		dcc.Graph(id='ppaux_contribs_glob'
+			,figure={}
+			,className='six columns'
+			,config={
 				'staticPlot': False,
 				'scrollZoom': True,
 				'doubleClick': 'reset',
@@ -86,8 +89,14 @@ app.layout = html.Div(children=[
 				'displayModeBar': False,
 				'watermark': True
                         	}
-			),
-		])
+			)
+		]
+		)
+
+	,html.Div([dcc.Graph(id='density',
+		figure = {}
+		,className='ten columns')])
+
 	,html.Div([
 		html.Div([
 			dcc.Dropdown(id='dropdown_1', 
@@ -114,17 +123,6 @@ app.layout = html.Div(children=[
 			],
             		style={"width": "25%"})
 	])
-	#,html.Div([dcc.Graph(id='scat',
-				#figure={}, 
-				#className='six columns',
-				#config={
-					#'staticPlot': False,
-					#'scrollZoom': True,
-					#'doubleClick': 'reset',
-					#'showTips': False,
-					#'displayModeBar': False,
-					#'watermark': True
-                        	#})])
     ])
 
 
@@ -149,30 +147,33 @@ def afficher_résultats(ID, feat_x1, feat_y1):
 
 	# Puis je construis la jauge:
 
-	pred = json_data['pred']
 	seuil = 0.505
-	Echelle_seuil = [0, min(0.6*seuil,1), min(0.9*seuil,1), min(seuil,1),min(1.2*seuil,1), 1]
+	if json_data['pred']<seuil:
+		pred = int((json_data['pred']-seuil)*100/seuil)
+	else:
+		pred = int((json_data['pred']-seuil)*100/(1-seuil))
+	Echelle_seuil = [-100, -40, -10, 0, 15, 100]
 	col = 'red'
 	if pred < seuil:
 		col = 'green'
 	else:
 		col = 'red'
 	jauge = go.Figure(go.Indicator(
-		mode = "gauge+number",
+		mode = "gauge",
 		value = pred,
-		domain = {'x': [0, 1], 'y': [0, 1]}
-		,title = {'text': "Score credit"}
-		,gauge = {'axis': {'range': [0, 1]}
+		title = {'text': "Score credit"}
+		,gauge = {'axis': {'range': [-100, 100]}
 			,'bar': {'color': col}
 			,'steps': [
-				{'range': [0, Echelle_seuil[1]], 'color': 'limegreen'},
+				{'range': [Echelle_seuil[0], Echelle_seuil[1]], 'color': 'limegreen'},
 				{'range': [Echelle_seuil[1], Echelle_seuil[2]], 'color': 'lightgreen'},
 				{'range': [Echelle_seuil[2], Echelle_seuil[3]], 'color': 'yellow'},
 				{'range': [Echelle_seuil[3], Echelle_seuil[4]], 'color': 'orange'},
-				{'range': [Echelle_seuil[4], 1], 'color': 'orangered'}]
-			,'threshold' : {'line': {'color': "black", 'width': 1}, 'thickness': 1, 'value': seuil}
+				{'range': [Echelle_seuil[4], Echelle_seuil[5]], 'color': 'orangered'}]
+			,'threshold' : {'line': {'color': "black", 'width': 1}, 'thickness': 1, 'value':0}
               		}
     		))
+
 
 	# 2 graphs décrivant les principaux contributeurs au score de l'individu:
 
@@ -191,6 +192,7 @@ def afficher_résultats(ID, feat_x1, feat_y1):
 		name = 'Local feature importance',
 		marker_color = col_contribs_loc,
 		orientation='h'
+		,customdata = [liste_contribs_loc]
 		))
 	contribs_loc.update_layout(
 		title="Principaux contributeurs pour cet individu",
@@ -202,17 +204,7 @@ def afficher_résultats(ID, feat_x1, feat_y1):
 
 	#Contributions locales vs globales (contributions des features habituellement les plus contributifs):
 
-	top_10_contrib_glob_idx = np.argsort(abs(feat_imp_glob['Feature_importance']))[-10:]
-	top_10_contrib_glob = feat_imp_glob.iloc[top_10_contrib_glob_idx]
-	ppaux_contribs_glob = go.Figure()
-	ppaux_contribs_glob.add_trace(go.Bar(
-		x = top_10_contrib_glob['Feature_importance'],
-		y = top_10_contrib_glob['Feature'],
-		name = 'Global feature importance',
-		marker_color = 'gray',
-		orientation='h'
-		))
-	ppaux_contribs_glob.add_trace(go.Bar(
+	ppaux_contribs_glob = go.Figure(go.Bar(
 		x = json_data['contrib_top_10_glob'],
 		y = ['NEW_EXT_SOURCES_SUM_stdscl',
 			'EXT_SOURCE_2_stdscl',
@@ -223,18 +215,17 @@ def afficher_résultats(ID, feat_x1, feat_y1):
 			'NEW_CREDIT_TO_ANNUITY_RATIO_stdscl',
 			'CODE_GENDER_stdscl',
 			'NEW_DOC_IND_KURT_stdscl',
-			'AMT_ANNUITY_stdscl'],
+			'AMT_ANNUITY_stdscl'
+			],
 		name = 'Local feature importance',
 		marker_color = json_data['col_glob'],
 		orientation='h'
 		))
-	lim_x_loc_glob = max(lim_x[0], max(top_10_contrib_glob['Feature_importance'])*1)
 	ppaux_contribs_glob.update_layout(
-		xaxis_range=[-lim_x_loc_glob, lim_x_loc_glob],
-		title="Performance comparée aux principaux contributeurs habituels",
-		font=dict(
-			size=9
-		))
+		xaxis_range=[-lim_x[0],lim_x[0]],
+		title="Performance pour les principaux contributeurs globaux",
+		font=dict(size=9),
+		yaxis=dict(autorange="reversed"))
 
 	# Scatter Plot pour comparaison de l'individu sélectionné avec un échantillon représentatif de la pop totale, pour 2 features sélectionnés
 	a = feat_x1
@@ -285,7 +276,112 @@ def afficher_résultats(ID, feat_x1, feat_y1):
 		height=700)
 	scat.update_xaxes(title_text=feat_x1)
 	scat.update_yaxes(title_text=feat_y1)
-	return u'Vous affichez le candidat "{}".'.format(ID),jauge,ppaux_contribs_loc,ppaux_contribs_glob, scat
+	
+	return u'Vous affichez le candidat "{}".'.format(ID), jauge,ppaux_contribs_loc,ppaux_contribs_glob, scat
+
+
+
+@app.callback(
+	Output(component_id='conseil_IA', component_property='children'),
+	Input(component_id='ID', component_property = 'value')
+	)
+
+def afficher_suggestion(ID):
+
+	# 1ère chose: extraire les données de l'individu à afficher.
+
+	i = int(ID)
+	data_requests = requests.get("http://127.0.0.1:5000/fi_locales/?individu="+str(i))
+	json_data = data_requests.json()
+
+	seuil = 0.505
+	if json_data['pred']<seuil:
+		pred = int((json_data['pred']-seuil)*100/seuil)
+	else:
+		pred = int((json_data['pred']-seuil)*100/(1-seuil))
+
+	Echelle_seuil = [-100, -40, -10, 0, 15, 100]
+
+	# Suggestion de décision renvoyée par l'IA:
+
+	sugg = ""
+	if pred < Echelle_seuil[1]:
+		sugg = "Analyse de l'IA: Très bon candidat. Avis très favorable."
+	elif pred < Echelle_seuil[2]:
+		sugg = "Analyse de l'IA: Bon candidat. Avis favorable."
+	elif pred < Echelle_seuil[3]:
+		sugg = "Analyse de l'IA: Candidat acceptable. Avis légèrement favorable."
+	elif pred < Echelle_seuil[4]:
+		sugg = "Analyse de l'IA: Avis légèrement défavorable."
+	elif pred > Echelle_seuil[4]:
+		sugg = "Analyse de l'IA: Avis très favorable."
+
+	
+	return str(sugg)
+
+
+@app.callback(
+	Output(component_id='density', component_property='figure'),
+	Input(component_id='ID', component_property = 'value'),
+	Input(component_id='ppaux_contribs_loc', component_property = 'clickData'),
+	Input(component_id='ppaux_contribs_glob', component_property = 'clickData')
+	)
+
+def courbe_densité(ID, click1, click2):
+
+	i = int(ID)
+
+	if (click1 is None) and (click2 is None):
+		feat  = 'NEW_EXT_SOURCES_SUM_stdscl'
+	else:
+		ctx = dash.callback_context
+		input_id = ctx.triggered[0]['prop_id'].split('.')[0]
+		if input_id== 'ppaux_contribs_loc':
+			feat = click1['points'][0]['y']
+		elif input_id== 'ppaux_contribs_glob':
+			feat = click2['points'][0]['y']
+
+
+	density = go.Figure()
+	density.add_trace(go.Histogram(x=echantillon_train_X[echantillon_train_pred['Classe'] == 0][feat],
+                                marker=dict(
+            				color='limegreen'),
+				name="Très bons candidats",
+				nbinsy = 20
+				))
+	density.add_trace(go.Histogram(x=echantillon_train_X[echantillon_train_pred['Classe'] == 1][feat],
+                                marker=dict(
+            				color='lightgreen'),
+				name="Bons candidats",
+				nbinsy = 20
+				))
+	density.add_trace(go.Histogram(x=echantillon_train_X[echantillon_train_pred['Classe'] == 2][feat],
+                                marker=dict(
+            				color='yellow'),
+				name="Candidats acceptables",
+				nbinsy = 20
+				))
+	density.add_trace(go.Histogram(x=echantillon_train_X[echantillon_train_pred['Classe'] == 3][feat],
+                                marker=dict(
+            				color='orange'),
+				name="Candidats risqués",
+				nbinsy = 20
+				))
+	density.add_trace(go.Histogram(x=echantillon_train_X[echantillon_train_pred['Classe'] == 4][feat],
+                                marker=dict(
+            				color='orangered'),
+				name="Candidats très risqués",
+				nbinsy = 20
+				))
+	density.add_trace(go.Histogram(x=[echantillon_test_X[feat].iloc[i]],
+                                marker=dict(
+            				color='black'
+				),
+				name="Votre candidat",
+				nbinsy = 20
+				))
+	density.update_layout(barmode = 'stack')
+	return density
 
 
 
