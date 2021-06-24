@@ -41,8 +41,10 @@ i = 0
 #Layout:
 
 app.layout = html.Div(children=[
-	html.H1(children='Dashboard credit'),
-
+   	html.Br(),
+	html.H1(children='Dashboard credit',
+		style={'textAlign': 'center', 'font-weight': 'bold'}),
+	html.Br(),
 	html.Div(children=' '),
 	html.Div(["Choisissez un individu (0 à 999): ",
 		dcc.Input(id='ID', 
@@ -60,10 +62,15 @@ app.layout = html.Div(children=[
 			'doubleClick': 'reset',
 			'showTips': False,
 			'displayModeBar': False,
-			'watermark': True
+			'watermark': False
                         })
 
-	,html.Div(id='conseil_IA')
+	,html.Div(id='conseil_IA',
+		style={'textAlign': 'center', 'font-weight': 'bold', 'fontSize': 24})
+	,html.Br()
+	,html.Br()
+	,html.Br()
+	,html.Br()
 
 	,html.Div([
 		dcc.Graph(id='ppaux_contribs_loc'
@@ -75,7 +82,7 @@ app.layout = html.Div(children=[
 				'doubleClick': 'reset',
 				'showTips': False,
 				'displayModeBar': False,
-				'watermark': True
+				'watermark': False
                         	}
 			),
 		dcc.Graph(id='ppaux_contribs_glob'
@@ -87,43 +94,65 @@ app.layout = html.Div(children=[
 				'doubleClick': 'reset',
 				'showTips': False,
 				'displayModeBar': False,
-				'watermark': True
+				'watermark': False
                         	}
 			)
 		]
 		)
 
+
+	,html.Br()
+
 	,html.Div([dcc.Graph(id='density',
 		figure = {}
-		,className='ten columns')])
+		,className='twelve columns'
+		,config={
+			'staticPlot': False,
+			'scrollZoom': True,
+			'doubleClick': 'reset',
+			'showTips': False,
+			'displayModeBar': False,
+			'watermark': False
+                        	})])
 
+	,html.Br()
+	,html.Br()
+	,html.Br()
 	,html.Div([
-		html.Div([
-			dcc.Dropdown(id='dropdown_1', 
+		html.Div(children=[
+			html.Div(["Sélectionnez jusqu'à deux variables pour situer le candidat."
+				]
+				,style={'textAlign': 'center', 'fontSize': 16}
+				)
+			,dcc.Dropdown(id='dropdown_1', 
 				multi=False,  
-				className='ten columns',
+				#className='ten columns',
 				options=[{'label': x, 'value': x} for x in sorted(echantillon_train_X.columns)],
 				value="EXT_SOURCE_1_stdscl")
 			,dcc.Dropdown(id='dropdown_2', 
 				multi=False,  
-				className='ten columns',
+				#className='ten columns',
 				options=[{'label': x, 'value': x} for x in sorted(echantillon_train_X.columns)],
-				value="EXT_SOURCE_2_stdscl"),
-				dcc.Graph(id='scat',
-					figure={}, 
-					className='two columns',
-					config={
-						'staticPlot': False,
-						'scrollZoom': True,
-						'doubleClick': 'reset',
-						'showTips': False,
-						'displayModeBar': False,
-						'watermark': True
-                        	})
-			],
-            		style={"width": "25%"})
+				value="EXT_SOURCE_2_stdscl")
+			]
+			,style={'display': 'inline-block', 'width': '25%'}
+			,className='three columns'
+			)
+
+		,dcc.Graph(id='scat',
+				figure={}, 
+				className='two columns',
+				config={
+					'staticPlot': False,
+					'scrollZoom': True,
+					'doubleClick': 'reset',
+					'showTips': False,
+					'displayModeBar': False,
+					'watermark': False
+				})
+            		#,style={"width": "25%"}
+		])
 	])
-    ])
 
 
 @app.callback(
@@ -196,11 +225,10 @@ def afficher_résultats(ID, feat_x1, feat_y1):
 		))
 	contribs_loc.update_layout(
 		title="Principaux contributeurs pour cet individu",
-		font=dict(
-			size=9
-			))
+		font=dict(size=14),
+		xaxis_range=[-lim_x[0],lim_x[0]],
+					xaxis = go.layout.XAxis(showticklabels=False))
 	ppaux_contribs_loc = go.Figure(data=contribs_loc)
-	ppaux_contribs_loc.update_layout(xaxis_range=[-lim_x[0],lim_x[0]])
 
 	#Contributions locales vs globales (contributions des features habituellement les plus contributifs):
 
@@ -223,9 +251,10 @@ def afficher_résultats(ID, feat_x1, feat_y1):
 		))
 	ppaux_contribs_glob.update_layout(
 		xaxis_range=[-lim_x[0],lim_x[0]],
-		title="Performance pour les principaux contributeurs globaux",
-		font=dict(size=9),
-		yaxis=dict(autorange="reversed"))
+		title="Impact des principaux contributeurs habituels pour cet individu",
+		font=dict(size=14),
+		yaxis=dict(autorange="reversed"),
+		xaxis = go.layout.XAxis(showticklabels=False))
 
 	# Scatter Plot pour comparaison de l'individu sélectionné avec un échantillon représentatif de la pop totale, pour 2 features sélectionnés
 	a = feat_x1
@@ -271,9 +300,11 @@ def afficher_résultats(ID, feat_x1, feat_y1):
 				name="Votre candidat"
 				))
 	scat.update_layout(
-		autosize=False,
-		width=1000,
-		height=700)
+		autosize = False,
+		width = 1000,
+		height = 700,
+		xaxis = go.layout.XAxis(showticklabels=False),
+		yaxis = go.layout.YAxis(showticklabels=False))
 	scat.update_xaxes(title_text=feat_x1)
 	scat.update_yaxes(title_text=feat_y1)
 	
@@ -380,7 +411,11 @@ def courbe_densité(ID, click1, click2):
 				name="Votre candidat",
 				nbinsy = 20
 				))
-	density.update_layout(barmode = 'stack')
+	density.update_layout(barmode = 'stack', 
+				title = {'text' : str(feat)+" - Position dans la population - Cliquez sur un contributeur ci-dessus l'afficher ici."},
+				title_font_size=16,
+				xaxis = go.layout.XAxis(showticklabels=False),
+				yaxis = go.layout.YAxis(showticklabels=False))
 	return density
 
 
